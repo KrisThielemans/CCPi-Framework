@@ -20,7 +20,7 @@ from ccpi.astra.operators import AstraProjectorSimple
 from ccpi.optimisation.operators import FiniteDiff, SparseFiniteDiff
 
 # create phantom
-N = 75
+N = 128
 phantom = np.zeros((N,N))
 phantom[round(N/4):round(3*N/4),round(N/4):round(3*N/4)] = 0.5
 phantom[round(N/8):round(7*N/8),round(3*N/8):round(5*N/8)] = 1
@@ -34,7 +34,7 @@ data = ImageData(phantom)
 ig = ImageGeometry(voxel_num_x = N, voxel_num_y = N)
 
 detectors = N
-angles = np.linspace(0, np.pi, N, dtype = np.float32)
+angles = np.linspace(0, np.pi, round(N), dtype = np.float32)
 
 ag = AcquisitionGeometry('parallel','2D',angles, detectors)
 Aop = AstraProjectorSimple(ig, ag, 'cpu')
@@ -44,16 +44,18 @@ b = Aop.direct(data)
 # show Sinogram
 plt.imshow(b.as_array())
 plt.title('Sinogram')
+plt.colorbar()
 plt.show()
 
 # scale coefficient - used to scale Aop.adjoint(Aop.direct(x))
-scale = 1 / np.sqrt(N * N)
+scale = (np.pi / 2) / np.sqrt(N * N)
 
 # init
 x = Aop.adjoint(b) * scale
 # show Initialization image
 plt.imshow(x.as_array())
 plt.title('Initialization image')
+plt.colorbar()
 plt.show()
 
 # initialize some variables
@@ -62,10 +64,10 @@ sy = ImageData(array = np.zeros((N, N), dtype = np.float32))
 div_tol = 1e-12
 
 # constants
-# number of iterations
+# Split Bregman maximu number of iterations
 sb_iter = 100
 # Split-Bregman mu
-sb_mu = 1
+sb_mu = 0.01
 # Split Bregman lambda
 sb_lambda = 1
 # Split Bregman tolerance
@@ -73,7 +75,7 @@ sb_tol = 1e-5 * x.norm()
 # Gradient Descent alpha
 gd_alpha = 1e-3
 # Gradient Descent number of iterations
-gd_iter = 30
+gd_iter = 100
 
 # initialize Finite Difference operators
 FDx = FiniteDiff(ig, direction = 0, bnd_cond = 'Neumann')
