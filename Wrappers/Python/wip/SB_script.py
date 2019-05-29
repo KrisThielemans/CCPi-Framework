@@ -6,7 +6,8 @@ Created on Mon May 27 11:55:04 2019
 @author: evelina
 """
 
-from ccpi.framework import ImageData, ImageGeometry, AcquisitionGeometry, AcquisitionData, DataContainer
+from ccpi.framework import ImageData, ImageGeometry, AcquisitionGeometry, \
+AcquisitionData, DataContainer, BlockGeometry
 
 import numpy as np 
 import matplotlib.pyplot as plt
@@ -20,7 +21,7 @@ from ccpi.astra.operators import AstraProjectorSimple
 from ccpi.optimisation.operators import FiniteDiff, SparseFiniteDiff
 
 # create phantom
-N = 128
+N = 75
 phantom = np.zeros((N,N))
 phantom[round(N/4):round(3*N/4),round(N/4):round(3*N/4)] = 0.5
 phantom[round(N/8):round(7*N/8),round(3*N/8):round(5*N/8)] = 1
@@ -59,8 +60,9 @@ plt.colorbar()
 plt.show()
 
 # initialize some variables
-sx = ImageData(array = np.zeros((N, N), dtype = np.float32))
-sy = ImageData(array = np.zeros((N, N), dtype = np.float32))
+BG = BlockGeometry(ig, ig)
+s = BG.allocate(value = 0)
+
 div_tol = 1e-12
 
 # constants
@@ -69,13 +71,73 @@ sb_iter = 100
 # Split-Bregman mu
 sb_mu = 0.01
 # Split Bregman lambda
-sb_lambda = 1
+sb_lambda = 0.5
 # Split Bregman tolerance
 sb_tol = 1e-5 * x.norm()
 # Gradient Descent alpha
 gd_alpha = 1e-3
 # Gradient Descent number of iterations
 gd_iter = 100
+
+# initialize Gradient operator
+gradient = Gradient(ig, correlation='Space')
+
+# initialize other variables
+k = 0
+err = x.squared_norm()
+
+while ((err > sb_tol) and (k < sb_iter)):
+    
+    x_0 = x.copy()
+    
+    # update d 
+    g = gradient.direct(x)
+    h = sum((g + s) ** 2).sqrt()
+
+    d = (h - 1 / sb_mu).maximum(0) * (g + s) / h.maximum(div_tol)
+    
+    for i in range(gd_iter):
+        x -= gd_alpha * (sb_lambda * scale * Aop.adjoint(Aop.direct(x) - b) + 
+                         sb_mu * (gradient.adjoint(gradient.direct(x) - d + s)))
+    
+    err = (x - x_0).squared_norm()
+    k += 1
+    
+    print('iter {}, err {}'.format(k, err))
+    
+    # update s
+    s += gradient.direct(x) - d
+
+# Show Ground Truth and Reconstruction
+plt.figure(figsize=(10, 10))
+plt.subplot(2,1,1)
+plt.imshow(data.as_array())
+plt.title('Ground Truth')
+plt.colorbar()
+plt.subplot(2,1,2)
+plt.imshow(x.as_array())
+plt.title('Reconstruction')
+plt.colorbar()
+plt.show()
+
+plt.figure(figsize=(10, 10))
+plt.subplot(2,1,1)
+plt.plot(np.linspace(0, N, N), data.as_array()[int(N/2), :], label = 'Ground Truth')
+plt.plot(np.linspace(0, N, N), x.as_array()[int(N/2), :], label = 'Reconstruction')
+plt.legend()
+plt.title('Horizontal Line Profiles')
+plt.subplot(2,1,2)
+plt.plot(np.linspace(0, N, N), data.as_array()[:, int(N/2)], label = 'Ground Truth')
+plt.plot(np.linspace(0, N, N), x.as_array()[:, int(N/2)], label = 'Reconstruction')
+plt.legend()
+plt.title('Verical Line Profiles')
+plt.show()
+
+'''
+# %%%%%%%%%%%%%%%%%%%%%%%% old %%%%%%%%%%%%%%%%%%%%%%%%%%
+# initialize some variables
+sx = ig.allocate(value = 0)
+sy = ig.allocate(value = 0)
 
 # initialize Finite Difference operators
 FDx = FiniteDiff(ig, direction = 0, bnd_cond = 'Neumann')
@@ -109,33 +171,29 @@ while ((err > sb_tol) and (k < sb_iter)):
     # update s
     sx += FDx.direct(x) - dx
     sy += FDy.direct(x) - dy
-    '''
-    plt.imshow(x.as_array())
-    plt.title('x iter {}'.format(k))
-    plt.show()
-    '''
 
 # Show Ground Truth and Reconstruction
-plt.figure(figsize=(10,10))
-plt.subplot(2,1,1)
+plt.figure(1)
+plt.subplot(1,2,1)
 plt.imshow(data.as_array())
 plt.title('Ground Truth')
 plt.colorbar()
-plt.subplot(2,1,2)
+plt.subplot(1,2,2)
 plt.imshow(x.as_array())
 plt.title('Reconstruction')
 plt.colorbar()
 plt.show()
 
-plt.figure(figsize=(10,10))
-plt.subplot(2,1,1)
-plt.plot(np.linspace(0,N,N), data.as_array()[int(N/2),:], label = 'Ground Truth')
-plt.plot(np.linspace(0,N,N), x.as_array()[int(N/2),:], label = 'Reconstruction')
+plt.figure(2)
+plt.subplot(1,2,1)
+plt.plot(np.linspace(0, N, N), data.as_array()[int(N/2), :], label = 'Ground Truth')
+plt.plot(np.linspace(0, N, N), x.as_array()[int(N/2), :], label = 'Reconstruction')
 plt.legend()
 plt.title('Horizontal Line Profiles')
-plt.subplot(2,1,2)
-plt.plot(np.linspace(0,N,N), data.as_array()[:, int(N/2)], label = 'Ground Truth')
-plt.plot(np.linspace(0,N,N), x.as_array()[:, int(N/2)], label = 'Reconstruction')
+plt.subplot(1,2,2)
+plt.plot(np.linspace(0, N, N), data.as_array()[:, int(N/2)], label = 'Ground Truth')
+plt.plot(np.linspace(0, N, N), x.as_array()[:, int(N/2)], label = 'Reconstruction')
 plt.legend()
 plt.title('Verical Line Profiles')
 plt.show()
+'''
