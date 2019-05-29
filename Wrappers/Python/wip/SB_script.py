@@ -6,19 +6,14 @@ Created on Mon May 27 11:55:04 2019
 @author: evelina
 """
 
-from ccpi.framework import ImageData, ImageGeometry, AcquisitionGeometry, \
-AcquisitionData, DataContainer, BlockGeometry
-
 import numpy as np 
 import matplotlib.pyplot as plt
 
-from ccpi.optimisation.algorithms import FISTA, CGLS, GradientDescent
-
+from ccpi.framework import ImageData, ImageGeometry, AcquisitionGeometry, \
+AcquisitionData, DataContainer, BlockGeometry
 from ccpi.optimisation.operators import Gradient
-from ccpi.optimisation.functions import ZeroFunction, L2NormSquared, FunctionOperatorComposition
-from skimage.util import random_noise
 from ccpi.astra.operators import AstraProjectorSimple
-from ccpi.optimisation.operators import FiniteDiff, SparseFiniteDiff
+from ccpi.optimisation.operators import FiniteDiff
 
 # create phantom
 N = 75
@@ -71,10 +66,10 @@ sb_iter = 100
 # Split-Bregman mu
 sb_mu = 0.01
 # Split Bregman lambda
-sb_lambda = 0.5
+sb_lambda = 5
 # Split Bregman tolerance
 sb_tol = 1e-5 * x.norm()
-# Gradient Descent alpha
+# Gradient Descent alpha (rate)
 gd_alpha = 1e-3
 # Gradient Descent number of iterations
 gd_iter = 100
@@ -84,29 +79,30 @@ gradient = Gradient(ig, correlation='Space')
 
 # initialize other variables
 k = 0
-err = x.squared_norm()
+err = x.norm()
+g = gradient.direct(x)
 
 while ((err > sb_tol) and (k < sb_iter)):
     
     x_0 = x.copy()
     
     # update d 
-    g = gradient.direct(x)
-    h = sum((g + s) ** 2).sqrt()
-
+    h = (g + s).pnorm(2)
     d = (h - 1 / sb_mu).maximum(0) * (g + s) / h.maximum(div_tol)
     
+    # update x using Gradient Descent
     for i in range(gd_iter):
         x -= gd_alpha * (sb_lambda * scale * Aop.adjoint(Aop.direct(x) - b) + 
                          sb_mu * (gradient.adjoint(gradient.direct(x) - d + s)))
     
-    err = (x - x_0).squared_norm()
+    err = (x - x_0).norm()
     k += 1
     
     print('iter {}, err {}'.format(k, err))
     
     # update s
-    s += gradient.direct(x) - d
+    g = gradient.direct(x)
+    s += g - d
 
 # Show Ground Truth and Reconstruction
 plt.figure(figsize=(10, 10))
