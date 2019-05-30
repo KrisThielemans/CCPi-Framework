@@ -101,38 +101,24 @@ frame = 'db1'
 level = 2
 wavelet = pywt.Wavelet(frame)
 print(wavelet)
-coeffs = pywt.wavedec(x1.as_array(), wavelet, level = level)
+coeffs = pywt.wavedecn(x1.as_array(), wavelet, level = level)
+coeffs_array, coeff_slices, coeff_shapes = pywt.ravel_coeffs(coeffs)
 
-
-s = []
-# initialize s
-for i in range(len(coeffs)):
-    s.append(np.zeros(coeffs[i].shape, dtype = float))
-    
-d = []
-# initialize s
-for i in range(len(coeffs)):
-    d.append(np.zeros(coeffs[i].shape, dtype = float))
-
+s = np.zeros(coeffs_array.shape,dtype = float)
+d = np.zeros(coeffs_array.shape,dtype = float)
 
 while ((err > sb_tol) and (k < sb_iter)):
     
     x_0 = x.copy()
     
-    wtx = pywt.wavedec(x.as_array(), wavelet, level = level)
+    wtx = pywt.ravel_coeffs(pywt.wavedecn(x.as_array(), wavelet, level = level))[0]
     
-    # update d
-    for i in range(len(coeffs)):
-        d[i] = np.sign(wtx[i] + s[i]) * np.maximum(np.abs(wtx[i] + s[i]) - 1 / sb_mu, 0)
+    d = np.sign(wtx + s) * np.maximum(np.abs(wtx + s) - 1 / sb_mu, 0)
 
     # update x using Gradient Descent
     for i in range(gd_iter):
-        tmp = []
-        for j in range(len(coeffs)):
-            tmp.append(wtx[j] - d[j] + s[j])
-
         x -= gd_alpha * (sb_lambda * scale * Aop.adjoint(Aop.direct(x) - g) + 
-                         sb_mu * ImageData(array = pywt.waverec(tmp, wavelet)[:N, :N]))
+                         sb_mu * ImageData(array = pywt.waverecn(pywt.unravel_coeffs(wtx - d + s, coeff_slices = coeff_slices, coeff_shapes = coeff_shapes),  wavelet)[:N, :N]))
 
     err = (x - x_0).norm()
     k += 1
@@ -140,10 +126,9 @@ while ((err > sb_tol) and (k < sb_iter)):
     print('iter {}, err {}'.format(k, err))
     
     # update s
-    wtx = pywt.wavedec(x.as_array(), wavelet, level = level)
+    wtx = pywt.ravel_coeffs(pywt.wavedecn(x.as_array(), wavelet, level = level))[0]
 
-    for i in range(len(coeffs)):
-        s[i] += wtx[i] - d[i]
+    s += wtx - d
 
 
 # Show Ground Truth and Reconstruction
