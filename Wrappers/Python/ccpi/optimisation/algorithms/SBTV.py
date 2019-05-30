@@ -89,8 +89,8 @@ class SB(Algorithm):
         
         # update d 
         grad_x = self._gradient.direct(self.x)
-        h = (grad_x + self._s).pnorm(2)
-        self._d = (h - 1 / self.sb_mu).maximum(0) * (grad_x + self._s) / h.maximum(1e-12)
+        h = grad_x + self._s
+        self._d = h.sign() * (h.abs() - 1 / self.sb_mu).maximum(0)
         
         # update x using Gradient Descent
         for i in range(self.gd_iter):
