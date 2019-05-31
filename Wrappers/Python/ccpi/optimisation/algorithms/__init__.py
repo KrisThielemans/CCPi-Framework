@@ -30,5 +30,5 @@ from .FISTA import FISTA
 from .FBPD import FBPD
 from .PDHG import PDHG
 from .PDHG import PDHG_old
-from .SBTV import SBTV
+from .SplitBregman import SplitBregman
 

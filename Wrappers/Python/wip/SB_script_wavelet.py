@@ -22,8 +22,8 @@ from ccpi.framework import ImageData, ImageGeometry, AcquisitionGeometry, \
 AcquisitionData, DataContainer, BlockGeometry
 from ccpi.optimisation.operators import Gradient, BlockOperator
 from ccpi.astra.operators import AstraProjectorSimple
-from ccpi.optimisation.operators import FiniteDiff
-from ccpi.optimisation.algorithms import SBTV
+from ccpi.optimisation.operators import FiniteDiff, WaveletOperator
+from ccpi.optimisation.algorithms import SplitBregman
 
 
 # create phantom
@@ -97,28 +97,27 @@ k = 0
 err = x.norm()
 
 # initialize Wavelet operator
-frame = 'db1'
+frame = 'haar'
 level = 2
 wavelet = pywt.Wavelet(frame)
-print(wavelet)
-coeffs = pywt.wavedecn(x1.as_array(), wavelet, level = level)
-coeffs_array, coeff_slices, coeff_shapes = pywt.ravel_coeffs(coeffs)
+coeffs = pywt.wavedecn(x.as_array(), wavelet, level = level)
+coeffs_array, coeff_slices = pywt.coeffs_to_array(coeffs)
 
-s = np.zeros(coeffs_array.shape,dtype = float)
-d = np.zeros(coeffs_array.shape,dtype = float)
+s = np.zeros(coeffs_array.shape, dtype = np.float32)
+d = np.zeros(coeffs_array.shape, dtype = np.float32)
 
 while ((err > sb_tol) and (k < sb_iter)):
     
     x_0 = x.copy()
     
-    wtx = pywt.ravel_coeffs(pywt.wavedecn(x.as_array(), wavelet, level = level))[0]
+    wtx = pywt.coeffs_to_array(pywt.wavedecn(x.as_array(), wavelet, level = level))[0]
     
     d = np.sign(wtx + s) * np.maximum(np.abs(wtx + s) - 1 / sb_mu, 0)
 
     # update x using Gradient Descent
     for i in range(gd_iter):
         x -= gd_alpha * (sb_lambda * scale * Aop.adjoint(Aop.direct(x) - g) + 
-                         sb_mu * ImageData(array = pywt.waverecn(pywt.unravel_coeffs(wtx - d + s, coeff_slices = coeff_slices, coeff_shapes = coeff_shapes),  wavelet)[:N, :N]))
+                         sb_mu * ImageData(array = pywt.waverecn(pywt.array_to_coeffs(pywt.coeffs_to_array(pywt.wavedecn(x.as_array(), wavelet, level = level))[0] - d + s, coeff_slices = coeff_slices), wavelet)[:N, :N]))
 
     err = (x - x_0).norm()
     k += 1
@@ -126,7 +125,7 @@ while ((err > sb_tol) and (k < sb_iter)):
     print('iter {}, err {}'.format(k, err))
     
     # update s
-    wtx = pywt.ravel_coeffs(pywt.wavedecn(x.as_array(), wavelet, level = level))[0]
+    wtx = pywt.coeffs_to_array(pywt.wavedecn(x.as_array(), wavelet, level = level))[0]
 
     s += wtx - d
 
@@ -152,6 +151,48 @@ plt.title('Horizontal Line Profiles')
 plt.subplot(2,1,2)
 plt.plot(np.linspace(0, N, N), data.as_array()[:, int(N/2)], label = 'Ground Truth')
 plt.plot(np.linspace(0, N, N), x.as_array()[:, int(N/2)], label = 'Reconstruction')
+plt.legend()
+plt.title('Verical Line Profiles')
+plt.show()
+
+wt = WaveletOperator(ig,
+                     frame = frame,
+                     level = level) 
+
+sb = SplitBregman(g = g, 
+                  operator = Aop, 
+                  regularizer = wt,
+                  x_init = x1, 
+                  sb_mu = sb_mu, 
+                  sb_lambda = sb_lambda, 
+                  sb_tol = sb_tol,
+                  gd_rate = gd_alpha, 
+                  gd_iter = gd_iter)
+sb.max_iteration = 300
+sb.run(sb_iter)
+
+print(np.testing.assert_array_equal(x.as_array(), sb.get_output().as_array()))
+
+plt.figure(1)
+plt.subplot(2,1,1)
+plt.imshow(data.as_array())
+plt.title('Ground Truth')
+plt.colorbar()
+plt.subplot(2,1,2)
+plt.imshow(sb.get_output().as_array())
+plt.title('Reconstruction')
+plt.colorbar()
+plt.show()
+
+plt.figure(2)
+plt.subplot(2,1,1)
+plt.plot(np.linspace(0, N, N), data.as_array()[int(N/2), :], label = 'Ground Truth')
+plt.plot(np.linspace(0, N, N), sb.get_output().as_array()[int(N/2), :], label = 'Reconstruction')
+plt.legend()
+plt.title('Horizontal Line Profiles')
+plt.subplot(2,1,2)
+plt.plot(np.linspace(0, N, N), data.as_array()[:, int(N/2)], label = 'Ground Truth')
+plt.plot(np.linspace(0, N, N), sb.get_output().as_array()[:, int(N/2)], label = 'Reconstruction')
 plt.legend()
 plt.title('Verical Line Profiles')
 plt.show()

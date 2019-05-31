@@ -14,7 +14,7 @@ AcquisitionData, DataContainer, BlockGeometry
 from ccpi.optimisation.operators import Gradient, BlockOperator
 from ccpi.astra.operators import AstraProjectorSimple
 from ccpi.optimisation.operators import FiniteDiff
-from ccpi.optimisation.algorithms import SBTV
+from ccpi.optimisation.algorithms import SplitBregman
 
 
 # create phantom
@@ -140,14 +140,15 @@ plt.legend()
 plt.title('Verical Line Profiles')
 plt.show()
 
-sb = SBTV(g = g, 
-          operator = Aop, 
-          x_init = x1, 
-          sb_mu = sb_mu, 
-          sb_lambda = sb_lambda, 
-          sb_tol = sb_tol,
-          gd_rate = gd_alpha, 
-          gd_iter = gd_iter)
+sb = SplitBregman(g = g, 
+                  operator = Aop, 
+                  regularizer = gradient,
+                  x_init = x1, 
+                  sb_mu = sb_mu, 
+                  sb_lambda = sb_lambda, 
+                  sb_tol = sb_tol,
+                  gd_rate = gd_alpha, 
+                  gd_iter = gd_iter)
 sb.max_iteration = 300
 sb.run(100)
 
