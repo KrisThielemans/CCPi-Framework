@@ -1189,14 +1189,16 @@ class AcquisitionGeometry(object):
                     self.configuration = Cone3D(source_position, detector_position, detector_direction_row, detector_direction_col, rotation_axis_position, rotation_axis_direction, rotation_axis_rotation)
  
         else:
-            raise NotImplementedError("Per projection geometry is not yet implemented")   
+            raise NotImplementedError("Per-projection geometry is not yet implemented")   
+            
+            #ToDo: labels change from angles to projection
             self.per_projection = True
             self.num_positions = len(detector_position)
             self.angles = None
             none_list = [None]*self.num_positions
-            zero_list = [[0.]*dof]*self.num_positions
 
-            #need a complete list for these
+            #ToDo: need to check length matches num_positions
+            #input type and order, could be num_positions*dof?
             if self.geom_type == AcquisitionGeometry.PARALLEL and ray_direction is None:
                 print("nope")
             if self.geom_type == AcquisitionGeometry.CONE and source_position is None:
@@ -1204,33 +1206,35 @@ class AcquisitionGeometry(object):
             if detector_position is None:
                 print("nope")
             if detector_direction_row is None:
-                print("nope")                
-            if detector_direction_col is None:
+                print("nope")
+            if self.dimension == DIM3 and detector_direction_col is None:
                 print("nope")
 
-            if source_position is None:
-                source_position = none_list
-            if ray_direction is None:
-                ray_direction = none_list
             if rotation_axis_position is None:
                 rotation_axis_position = none_list
             if rotation_axis_direction is None:
                 rotation_axis_position = none_list
 
+            rotation_axis_rotation = 0.0
+
             self.configuration = none_list
             
-            for pos in range(self.num_positions):
-                self.configuration[pos] =  SystemConfiguration( dof,
-                                                                self.geom_type,
-                                                                source_position[pos], 
-                                                                ray_direction[pos], 
-                                                                detector_position[pos], 
-                                                                detector_direction_row[pos], 
-                                                                detector_direction_col[pos], 
-                                                                rotation_axis_position[pos], 
-                                                                rotation_axis_direction[pos]
-                                                            )  
-    
+            if self.dimension == AcquisitionGeometry.DIM2:
+                if self.geom_type == AcquisitionGeometry.PARALLEL:
+                    for pos in range(self.num_positions):
+                        self.configuration[pos] = Parallel2D(ray_direction[pos], detector_position[pos], detector_direction_row[pos], rotation_axis_position[pos], rotation_axis_rotation)
+                else:
+                    for pos in range(self.num_positions):
+                        self.configuration[pos] = Cone2D(source_position[pos], detector_position[pos], detector_direction_row[pos], rotation_axis_position[pos], rotation_axis_rotation)
+            else:
+                if self.geom_type == AcquisitionGeometry.PARALLEL:
+                    for pos in range(self.num_positions):
+                        self.configuration[pos] = Parallel3D(ray_direction[pos], detector_position[pos], detector_direction_row[pos], detector_direction_col[pos], rotation_axis_position[pos], rotation_axis_direction[pos], rotation_axis_rotation)
+                else:
+                    for pos in range(self.num_positions):
+                        self.configuration[pos] = Cone3D(source_position[pos], detector_position[pos], detector_direction_row[pos], detector_direction_col[pos], rotation_axis_position[pos], rotation_axis_direction[pos], rotation_axis_rotation)
+
+
         labels = kwargs.get('dimension_labels', None)
         self.dimension_labels = labels
 
